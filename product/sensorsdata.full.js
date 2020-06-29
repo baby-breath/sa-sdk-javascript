@@ -965,6 +965,9 @@
 
         var register_event = function(element, type, handler) {
           var useCapture = _.isObject(sd.para.heatmap) && sd.para.heatmap.useCapture ? true : false;
+          if (_.isObject(sd.para.heatmap) && typeof sd.para.heatmap.useCapture === 'undefined' && type === 'click') {
+            useCapture = true;
+          }
           if (element && element.addEventListener) {
             element.addEventListener(type, function(e) {
               e._getPath = fixEvent._getPath;
@@ -1879,6 +1882,7 @@
         },
         properties: function() {
           return {
+            $timezone_offset: (new Date()).getTimezoneOffset(),
             $screen_height: Number(screen.height) || 0,
             $screen_width: Number(screen.width) || 0,
             $lib: 'js',
@@ -2243,7 +2247,7 @@
 
     sd.setInitVar = function() {
       sd._t = sd._t || 1 * new Date();
-      sd.lib_version = '1.15.5';
+      sd.lib_version = '1.15.10';
       sd.is_first_visitor = false;
       sd.source_channel_standard = 'utm_source utm_medium utm_campaign utm_content utm_term';
     };
@@ -3062,6 +3066,9 @@
           if (_.isObject(sd.para.heatmap) && sd.para.heatmap.clickmap == 'default') {
             if (_.isObject(sd.para.app_js_bridge) && bridgeObj.verify_success === 'success') {
               if (!isLoaded) {
+                var protocol = location.protocol;
+                var protocolArr = ['http:', 'https:'];
+                protocol = _.indexOf(protocolArr, protocol) > -1 ? protocol : 'https:';
                 _.loadScript({
                   success: function() {
                     setTimeout(function() {
@@ -3072,7 +3079,7 @@
                   },
                   error: function() {},
                   type: 'js',
-                  url: location.protocol + '//static.sensorsdata.cn/sdk/' + sd.lib_version + '/vapph5define.min.js'
+                  url: protocol + '//static.sensorsdata.cn/sdk/' + sd.lib_version + '/vapph5define.min.js'
                 });
               } else {
                 sa_jssdk_app_define_mode(sd, isLoaded);
@@ -3093,6 +3100,7 @@
 
       function trackMode() {
 
+        sd.readyState.setState(3);
         window.sensorsdata_app_call_js = function(type) {
           if (type && type == 'visualized') {
             if (typeof sa_jssdk_app_define_mode !== 'undefined') {
@@ -3138,7 +3146,7 @@
         }
         sd.store.init();
 
-        sd.readyState.setState(3);
+        sd.readyState.setState(4);
         if (sd._q && _.isArray(sd._q) && sd._q.length > 0) {
           _.each(sd._q, function(content) {
             sd[content[0]].apply(sd, Array.prototype.slice.call(content[1]));
@@ -4724,6 +4732,13 @@
     _.each(methods, function(method) {
       var oldFunc = sd[method];
       sd[method] = function() {
+        if (sd.readyState.state < 3) {
+          if (!_.isArray(sd._q)) {
+            sd._q = [];
+          }
+          sd._q.push([method, arguments]);
+          return false;
+        }
         if (!sd.readyState.getState()) {
           try {
             console.error('请先初始化神策JS SDK');
